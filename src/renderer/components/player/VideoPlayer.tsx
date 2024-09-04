@@ -26,7 +26,6 @@ import TopControls from './TopControls';
 import { getAnimeHistory, setAnimeHistory } from '../../../modules/history';
 import AniSkip from '../../../modules/aniskip';
 import { SkipEvent } from '../../../types/aniskipTypes';
-import { skip } from 'node:test';
 
 const STORE = new Store();
 const style = getComputedStyle(document.body);
@@ -127,7 +126,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
       case 'ArrowLeft': {
         event.preventDefault();
-        video.currentTime -= 5;
+        video.currentTime -= STORE.get('key_press_skip') as number;
         break;
       }
       case 'ArrowUp': {
@@ -137,7 +136,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
       case 'ArrowRight': {
         event.preventDefault();
-        video.currentTime += 5;
+        video.currentTime += STORE.get('key_press_skip') as number;
         break;
       }
       case 'ArrowDown': {
@@ -229,7 +228,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [loading]);
 
   const getSkipEvents = async (episode: number) => {
-    const skipEvent = await AniSkip.getSkipEvents(listAnimeData.media.idMal as number, episode ?? episodeNumber ?? animeEpisodeNumber);
+    const duration = videoRef.current?.duration;
+    const skipEvent = await AniSkip.getSkipEvents(listAnimeData.media.idMal as number, episode ?? episodeNumber ?? animeEpisodeNumber, Number.isNaN(duration) ? 0 : duration);
 
     setSkipEvents(skipEvent);
   }
@@ -265,7 +265,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       setShowNextEpisodeButton(canNextEpisode(animeEpisodeNumber));
       setShowPreviousEpisodeButton(canPreviousEpisode(animeEpisodeNumber));
-      getSkipEvents(animeEpisodeNumber)
+      getSkipEvents(animeEpisodeNumber);
+
     }
   }, [video, listAnimeData]);
 
@@ -296,7 +297,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const animeId = (listAnimeData.media.id ||
       (listAnimeData.media.mediaListEntry &&
         listAnimeData.media.mediaListEntry.id)) as number;
-    if (animeId === null || animeId === undefined) return;
+    if (animeId === null || animeId === undefined || episodeNumber === 0) return;
     let entry = getAnimeHistory(animeId) ?? {
       history: {},
       data: listAnimeData,
@@ -366,7 +367,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const updateCurrentProgress = (completed: boolean = true) => {
     const status = listAnimeData.media.mediaListEntry?.status;
-    if (STORE.get('logged') as boolean) {
+    if(!completed) {
+      updateAnimeFromList(
+        listAnimeData.media.id,
+        'PAUSED',
+        undefined,
+        episodeNumber,
+      );
+      handleHistoryUpdate();
+    }else if (STORE.get('logged') as boolean) {
       switch (status) {
         case 'CURRENT': {
           updateAnimeProgress(listAnimeData.media.id!, episodeNumber);
@@ -411,7 +420,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setCurrentTime(cTime);
         setDuration(dTime);
         setBuffered(videoRef.current?.buffered);
-        handleHistoryUpdate();
+        // handleHistoryUpdate();
 
         if (
           (cTime * 100) / dTime > 85 &&
@@ -493,7 +502,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     onClose();
-    if (STORE.get('update_progress') as boolean) updateCurrentProgress(false);
+    if (STORE.get('update_progress'))
+      updateCurrentProgress((currentTime ?? 0) > (duration ?? 0) * 0.85);
 
     ipcRenderer.send('update-presence', {
       details: `🌸 Watch anime without ads.`,

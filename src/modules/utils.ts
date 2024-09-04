@@ -1,5 +1,5 @@
-import { AiringScheduleData, AnimeData, ListAnimeData } from '../types/anilistAPITypes';
-import { Media, MediaFormat, MediaStatus } from '../types/anilistGraphQLTypes';
+import { AnimeData, ListAnimeData } from '../types/anilistAPITypes';
+import { AiringSchedule, Media, MediaFormat, MediaStatus, Relation, Relations } from '../types/anilistGraphQLTypes';
 import { getLastWatchedEpisode } from './history';
 
 const MONTHS = {
@@ -46,17 +46,30 @@ export const getRandomDiscordPhrase = (): string =>
   DISCORD_PHRASES[Math.floor(Math.random() * DISCORD_PHRASES.length)];
 
 export const airingDataToListAnimeData = (
-  airingScheduleData: AiringScheduleData[]
+  airingScheduleData: AiringSchedule[]
 ): ListAnimeData[] => {
   return airingScheduleData.map((value) => {
     return {
       id: null,
       mediaId: null,
       progress: null,
-      media: value.media
+      media: value.media as Media
     };
   });
 };
+
+export const relationsToListAnimeData = (
+  relations: Relation[]
+): ListAnimeData[] => {
+  return relations.map((value) => {
+    return {
+      id: null,
+      mediaId: null,
+      progress: null,
+      media: value.node
+    }
+  })
+}
 
 export const animeDataToListAnimeData = (
   animeData: AnimeData,
@@ -180,7 +193,7 @@ export const getProgress = (animeEntry: Media): number | undefined => {
   const lastWatched = getLastWatchedEpisode(animeId);
 
   if(lastWatched !== undefined && lastWatched.data !== undefined) {
-    const progress = (lastWatched.data.episodeNumber as number) - 1;
+    const progress = (lastWatched.data.episodeNumber as number) - ((lastWatched.duration as number * 0.85) > lastWatched.time ? 1 : 0);
     return Number.isNaN(progress) ? 0 : progress;
   }
 
@@ -295,6 +308,7 @@ export const getParsedFormat = (format: MediaFormat | undefined) => {
     case 'MOVIE':
       return 'Movie';
     case 'SPECIAL':
+    case 'SUMMARY':
       return 'Special';
     case 'OVA':
       return 'OVA';
@@ -302,6 +316,12 @@ export const getParsedFormat = (format: MediaFormat | undefined) => {
       return 'ONA';
     case 'MUSIC':
       return 'Music';
+    case 'SEQUEL':
+      return 'Sequel';
+    case 'PREQUEL':
+      return 'Prequel';
+    case 'ALTERNATIVE':
+      return 'Alternative';
     default:
       return '?';
   }
